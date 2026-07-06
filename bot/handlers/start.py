@@ -306,8 +306,12 @@ async def check_subscription(
         # автоматически обрабатываем отложенную ссылку
         if pending_url:
             try:
-                from bot.handlers.download import _process_download
-                await _process_download(callback.message, pending_url, lang)
+                from bot.handlers.download import _process_download, _process_profile
+                from bot.utils.helpers import is_profile_url
+                if is_profile_url(pending_url):
+                    await _process_profile(callback.message, pending_url, lang)
+                else:
+                    await _process_download(callback.message, pending_url, lang)
             except Exception as e:
                 logger.error(f"Ошибка обработки pending_url: {e}")
 

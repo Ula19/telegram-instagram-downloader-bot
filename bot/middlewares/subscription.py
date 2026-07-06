@@ -77,13 +77,14 @@ class SubscriptionMiddleware(BaseMiddleware):
         text = t("sub.welcome", lang)
         keyboard = get_subscription_keyboard(not_subscribed, lang)
 
-        # запоминаем ссылку если юзер отправил Instagram URL
+        # запоминаем ссылку если юзер отправил Instagram URL (пост или профиль)
         if isinstance(event, Message) and event.text:
-            from bot.utils.helpers import is_instagram_url
-            if is_instagram_url(event.text.strip()):
+            from bot.utils.helpers import is_instagram_url, is_profile_url
+            event_text = event.text.strip()
+            if is_instagram_url(event_text) or is_profile_url(event_text):
                 state: FSMContext | None = data.get("state")
                 if state:
-                    await state.update_data(pending_url=event.text.strip())
+                    await state.update_data(pending_url=event_text)
 
         if isinstance(event, Message):
             await event.answer(text, reply_markup=keyboard, parse_mode="HTML")

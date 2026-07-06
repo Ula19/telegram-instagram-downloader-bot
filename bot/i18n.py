@@ -120,6 +120,11 @@ TRANSLATIONS = {
         "uz": f"\n\n{E['download']} @{{bot_username}} orqali bepul yuklab oling",
         "en": f"\n\n{E['download']} Download for free via @{{bot_username}}",
     },
+    "download.profile_photo": {
+        "ru": f"{E['camera']} Фото профиля @{{username}}",
+        "uz": f"{E['camera']} @{{username}} profil rasmi",
+        "en": f"{E['camera']} Profile photo of @{{username}}",
+    },
 
     # === Описания команд бота (для меню Telegram) ===
     "cmd.start": {
@@ -316,6 +321,23 @@ TRANSLATIONS = {
         "ru": f"{E['clock']} <b>Слишком много запросов!</b>\n\nПодожди {{seconds}} секунд и попробуй снова.",
         "uz": f"{E['clock']} <b>Juda ko'p so'rovlar!</b>\n\n{{seconds}} soniya kuting va qayta urinib ko'ring.",
         "en": f"{E['clock']} <b>Too many requests!</b>\n\nWait {{seconds}} seconds and try again.",
+    },
+    "error.profile_failed": {
+        "ru": (
+            f"{E['cross']} <b>Не удалось скачать фото профиля @{{username}}</b>\n\n"
+            f"Возможно, аккаунт не существует или Instagram временно блокирует запросы.\n\n"
+            f"{E['bulb']} Чтобы скачать медиа — отправь ссылку на пост, Reels или историю."
+        ),
+        "uz": (
+            f"{E['cross']} <b>@{{username}} profil rasmini yuklab bo'lmadi</b>\n\n"
+            f"Ehtimol, akkaunt mavjud emas yoki Instagram so'rovlarni vaqtincha bloklamoqda.\n\n"
+            f"{E['bulb']} Media yuklab olish uchun post, Reels yoki story havolasini yuboring."
+        ),
+        "en": (
+            f"{E['cross']} <b>Couldn't download profile photo of @{{username}}</b>\n\n"
+            f"The account may not exist or Instagram is temporarily blocking requests.\n\n"
+            f"{E['bulb']} To download media — send a link to a post, Reels or Story."
+        ),
     },
 
     # === Выбор языка ===

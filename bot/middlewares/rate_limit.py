@@ -34,9 +34,10 @@ class RateLimitMiddleware(BaseMiddleware):
         if not isinstance(event, Message) or not event.text:
             return await handler(event, data)
 
-        # проверяем что текст похож на ссылку Instagram
-        from bot.utils.helpers import is_instagram_url
-        if not is_instagram_url(event.text.strip()):
+        # проверяем что текст похож на ссылку Instagram (пост или профиль)
+        from bot.utils.helpers import is_instagram_url, is_profile_url
+        text = event.text.strip()
+        if not (is_instagram_url(text) or is_profile_url(text)):
             return await handler(event, data)
 
         user_id = event.from_user.id

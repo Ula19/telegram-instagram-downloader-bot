@@ -65,41 +65,68 @@ def _proxy_kind() -> str:
     return "http"
 
 
-async def get_user_id(session: aiohttp.ClientSession, username: str) -> str:
-    """Получает user_id по username через private API (с ретраем при 429)"""
-    if username in _user_id_cache:
-        logger.info(f"@{username} → user_id={_user_id_cache[username]} (кэш)")
-        return _user_id_cache[username]
-
+async def _fetch_profile_once(
+    session: aiohttp.ClientSession, username: str, cookies: dict
+) -> tuple[int, dict | None]:
+    """Один запрос профиля. Возвращает (http_status, json или None)"""
     url = f"https://i.instagram.com/api/v1/users/web_profile_info/?username={username}"
+    async with session.get(
+        url, headers=INSTAGRAM_HEADERS, cookies=cookies,
+        timeout=aiohttp.ClientTimeout(total=10),
+    ) as resp:
+        if resp.status != 200:
+            return resp.status, None
+        return 200, await resp.json()
+
+
+async def fetch_profile_info(session: aiohttp.ClientSession, username: str) -> dict:
+    """Получает данные профиля через private API (с ретраем при 429).
+    Возвращает dict юзера: id, profile_pic_url_hd, is_private и т.д.
+    """
     cookies = {"sessionid": settings.instagram_session_id}
 
     # ретрай при 429
     for attempt in range(3):
-        async with session.get(
-            url, headers=INSTAGRAM_HEADERS, cookies=cookies,
-            timeout=aiohttp.ClientTimeout(total=10),
-        ) as resp:
-            if resp.status == 429:
-                delay = 5 * (attempt + 1)
-                logger.warning(f"429 от Instagram, ждём {delay}с (попытка {attempt + 1}/3)")
-                await asyncio.sleep(delay)
-                continue
-            if resp.status in (401, 403):
-                raise SessionExpiredError(
-                    f"INSTAGRAM_SESSION_ID устарела или заблокирована (HTTP {resp.status})"
-                )
-            if resp.status != 200:
-                raise RuntimeError(f"Не удалось получить профиль @{username}: HTTP {resp.status}")
-            data = await resp.json()
-            break
+        status, data = await _fetch_profile_once(session, username, cookies)
+
+        # 429 с sessionid — лимит висит на аккаунте, пробуем анонимно.
+        # Анонимный ответ берём только если 200, иначе ошибки не искажаем
+        if status == 429:
+            anon_status, anon_data = await _fetch_profile_once(session, username, {})
+            if anon_status == 200:
+                logger.info(f"429 с sessionid, анонимный запрос прошёл (@{username})")
+                status, data = 200, anon_data
+
+        if status == 429:
+            delay = 5 * (attempt + 1)
+            logger.warning(f"429 от Instagram, ждём {delay}с (попытка {attempt + 1}/3)")
+            await asyncio.sleep(delay)
+            continue
+        if status in (401, 403):
+            raise SessionExpiredError(
+                f"INSTAGRAM_SESSION_ID устарела или заблокирована (HTTP {status})"
+            )
+        if status != 200:
+            raise RuntimeError(f"Не удалось получить профиль @{username}: HTTP {status}")
+        break
     else:
         raise RuntimeError("Instagram блокирует запросы (429)")
 
-    user = data.get("data", {}).get("user", {})
-    user_id = user.get("id")
-    if not user_id:
+    user = data.get("data", {}).get("user")
+    if not user or not user.get("id"):
         raise RuntimeError(f"Пользователь @{username} не найден")
+
+    return user
+
+
+async def get_user_id(session: aiohttp.ClientSession, username: str) -> str:
+    """Получает user_id по username (с кэшем в памяти)"""
+    if username in _user_id_cache:
+        logger.info(f"@{username} → user_id={_user_id_cache[username]} (кэш)")
+        return _user_id_cache[username]
+
+    user = await fetch_profile_info(session, username)
+    user_id = user["id"]
 
     _user_id_cache[username] = user_id
     logger.info(f"@{username} → user_id={user_id}")
