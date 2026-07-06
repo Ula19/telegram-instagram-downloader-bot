@@ -90,6 +90,18 @@ async def _get_avatar_url(session: aiohttp.ClientSession, username: str) -> str:
     return pic_url
 
 
+async def get_avatar_url(username: str) -> str:
+    """Возвращает прямую ссылку на HD-аватарку БЕЗ скачивания (для inline-режима)"""
+    if not settings.instagram_session_id:
+        raise RuntimeError(
+            "Для скачивания фото профиля нужна авторизация.\n"
+            "Добавь INSTAGRAM_SESSION_ID в .env"
+        )
+
+    async with create_session() as session:
+        return await _get_avatar_url(session, username)
+
+
 async def download_profile_photo(username: str, download_dir: str) -> dict:
     """Скачивает HD-аватарку профиля.
     Возвращает {file_path, media_type, title} — как download_story.

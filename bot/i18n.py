@@ -126,6 +126,38 @@ TRANSLATIONS = {
         "en": f"{E['camera']} Profile photo of @{{username}}",
     },
 
+    # === Inline-режим (кнопки над результатами — без HTML) ===
+    "inline.hint": {
+        "ru": "Вставь ссылку на пост, Reels или профиль",
+        "uz": "Post, Reels yoki profil havolasini kiriting",
+        "en": "Paste a post, Reels or profile link",
+    },
+    "inline.rate_limit": {
+        "ru": "Слишком много запросов — подожди минуту",
+        "uz": "Juda ko'p so'rovlar — bir daqiqa kuting",
+        "en": "Too many requests — wait a minute",
+    },
+    "inline.need_sub": {
+        "ru": "Сначала подпишись на каналы — открой бота",
+        "uz": "Avval kanallarga obuna bo'ling — botni oching",
+        "en": "Subscribe to channels first — open the bot",
+    },
+    "inline.error": {
+        "ru": "Не получилось — попробуй скачать в боте",
+        "uz": "Xatolik — botda yuklab olishga urinib ko'ring",
+        "en": "Failed — try downloading in the bot",
+    },
+    "inline.title_video": {
+        "ru": "Отправить видео",
+        "uz": "Video yuborish",
+        "en": "Send video",
+    },
+    "inline.title_photo": {
+        "ru": "Отправить фото",
+        "uz": "Rasm yuborish",
+        "en": "Send photo",
+    },
+
     # === Описания команд бота (для меню Telegram) ===
     "cmd.start": {
         "ru": "Запустить бота",

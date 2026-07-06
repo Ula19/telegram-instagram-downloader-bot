@@ -165,6 +165,67 @@ async def get_story_media(
     return items[-1]
 
 
+# лимит Telegram на скачивание файла по URL (inline-режим)
+_INLINE_VIDEO_LIMIT = 19 * 1024 * 1024
+
+
+async def pick_inline_video_url(
+    session: aiohttp.ClientSession, item: dict
+) -> str:
+    """Выбирает версию видео до 20 МБ (Telegram не заберёт по URL больше).
+    Проверяем размер HEAD-запросом, если все большие — берём самую маленькую.
+    """
+    versions = item.get("video_versions", [])
+    for v in versions:
+        try:
+            async with session.head(
+                v["url"], timeout=aiohttp.ClientTimeout(total=5)
+            ) as resp:
+                size = int(resp.headers.get("Content-Length", 0))
+                if 0 < size < _INLINE_VIDEO_LIMIT:
+                    return v["url"]
+        except Exception:
+            continue
+    # все версии большие или HEAD не сработал — берём последнюю (самое низкое качество)
+    return versions[-1]["url"]
+
+
+async def get_story_media_urls(url: str) -> dict:
+    """Возвращает прямую CDN-ссылку истории БЕЗ скачивания (для inline-режима).
+    Формат: {url, media_type, thumb, username}
+    """
+    if not settings.instagram_session_id:
+        raise RuntimeError(
+            "Для скачивания Stories нужна авторизация.\n"
+            "Добавь INSTAGRAM_SESSION_ID в .env"
+        )
+
+    username, story_id = parse_story_url(url)
+
+    async with create_session() as session:
+        user_id = await get_user_id(session, username)
+        item = await get_story_media(session, user_id, story_id)
+
+        candidates = item.get("image_versions2", {}).get("candidates", [])
+        thumb = candidates[-1]["url"] if candidates else None
+
+        if item.get("video_versions"):
+            media_url = await pick_inline_video_url(session, item)
+            media_type = "video"
+        else:
+            if not candidates:
+                raise RuntimeError("Не удалось найти медиа в истории")
+            media_url = candidates[0]["url"]
+            media_type = "photo"
+
+    return {
+        "url": media_url,
+        "media_type": media_type,
+        "thumb": thumb,
+        "username": username,
+    }
+
+
 async def download_story(url: str, download_dir: str) -> dict:
     """Скачивает историю и возвращает {file_path, media_type, title}"""
     if not settings.instagram_session_id:

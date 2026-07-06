@@ -15,6 +15,7 @@ from bot.services.stories import (
     INSTAGRAM_HEADERS,
     SessionExpiredError,
     create_session,
+    pick_inline_video_url,
 )
 
 logger = logging.getLogger(__name__)
@@ -114,6 +115,50 @@ async def _download_file(
 
     size_mb = len(content) / (1024 * 1024)
     logger.info(f"Скачано: {file_path} ({size_mb:.1f} МБ)")
+
+
+async def get_post_media_urls(url: str) -> list[dict]:
+    """Возвращает прямые CDN-ссылки медиа поста БЕЗ скачивания (для inline-режима).
+    Каждый элемент: {url, media_type, thumb}
+    """
+    if not settings.instagram_session_id:
+        raise RuntimeError(
+            "Для inline-режима нужна авторизация.\n"
+            "Добавь INSTAGRAM_SESSION_ID в .env"
+        )
+
+    shortcode = parse_post_shortcode(url)
+    media_pk = shortcode_to_media_pk(shortcode)
+
+    async with create_session() as session:
+        post = await get_media_info(session, media_pk)
+        medias = post.get("carousel_media") or [post]
+
+        results = []
+        for item in medias:
+            # превью всегда есть в image_versions2 (у видео это обложка)
+            candidates = item.get("image_versions2", {}).get("candidates", [])
+            thumb = candidates[-1]["url"] if candidates else None
+
+            if item.get("video_versions"):
+                media_url = await pick_inline_video_url(session, item)
+                media_type = "video"
+            else:
+                if not candidates:
+                    continue  # нет ни видео, ни фото — пропускаем элемент
+                media_url = candidates[0]["url"]
+                media_type = "photo"
+
+            results.append({
+                "url": media_url,
+                "media_type": media_type,
+                "thumb": thumb,
+            })
+
+    if not results:
+        raise RuntimeError("Не удалось найти медиа в посте")
+
+    return results
 
 
 async def download_post(url: str, download_dir: str) -> list[dict]:
