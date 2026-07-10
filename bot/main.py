@@ -16,7 +16,7 @@ from bot.config import settings
 from bot.database import engine
 from bot.database.models import Base
 from bot.emojis import E
-from bot.handlers import admin, download, start
+from bot.handlers import admin, download, inline, start
 from bot.i18n import get_bot_commands
 from bot.middlewares.rate_limit import RateLimitMiddleware
 from bot.middlewares.subscription import SubscriptionMiddleware
@@ -150,6 +150,7 @@ async def main() -> None:
     # регистрируем хэндлеры (порядок важен!)
     dp.include_router(start.router)      # /start и меню — первый
     dp.include_router(admin.router)      # /admin — второй
+    dp.include_router(inline.router)     # inline-режим (@бот ссылка в чатах)
     dp.include_router(download.router)   # ссылки Instagram — последний
 
     # мидлвари (порядок: rate limit → подписка)

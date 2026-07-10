@@ -21,6 +21,29 @@ WINDOW_SECONDS = 60
 _user_requests: dict[int, list[float]] = {}
 
 
+def hit_rate_limit(user_id: int) -> int | None:
+    """Регистрирует запрос юзера. Если лимит превышен — возвращает
+    сколько секунд подождать, иначе None (запрос засчитан).
+    Используется и мидлварью, и inline-режимом.
+    """
+    now = time.time()
+
+    # чистим старые записи
+    requests = [
+        ts for ts in _user_requests.get(user_id, [])
+        if now - ts < WINDOW_SECONDS
+    ]
+
+    if len(requests) >= MAX_REQUESTS:
+        _user_requests[user_id] = requests
+        oldest = requests[0]
+        return int(WINDOW_SECONDS - (now - oldest)) + 1
+
+    requests.append(now)
+    _user_requests[user_id] = requests
+    return None
+
+
 class RateLimitMiddleware(BaseMiddleware):
     """Ограничивает частоту скачиваний — только для текстовых сообщений"""
 
@@ -34,34 +57,19 @@ class RateLimitMiddleware(BaseMiddleware):
         if not isinstance(event, Message) or not event.text:
             return await handler(event, data)
 
-        # проверяем что текст похож на ссылку Instagram
-        from bot.utils.helpers import is_instagram_url
-        if not is_instagram_url(event.text.strip()):
+        # проверяем что текст похож на ссылку Instagram (пост или профиль)
+        from bot.utils.helpers import is_instagram_url, is_profile_url
+        text = event.text.strip()
+        if not (is_instagram_url(text) or is_profile_url(text)):
             return await handler(event, data)
 
-        user_id = event.from_user.id
-        now = time.time()
-
-        # чистим старые записи
-        if user_id in _user_requests:
-            _user_requests[user_id] = [
-                ts for ts in _user_requests[user_id]
-                if now - ts < WINDOW_SECONDS
-            ]
-        else:
-            _user_requests[user_id] = []
-
-        # проверяем лимит
-        if len(_user_requests[user_id]) >= MAX_REQUESTS:
-            oldest = _user_requests[user_id][0]
-            wait_sec = int(WINDOW_SECONDS - (now - oldest)) + 1
+        wait_sec = hit_rate_limit(event.from_user.id)
+        if wait_sec is not None:
             lang = detect_language(event.from_user.language_code)
             await event.answer(
                 t("error.rate_limit", lang, seconds=wait_sec),
             )
-            logger.info(f"Rate limit для {user_id}: подождать {wait_sec} сек")
+            logger.info(f"Rate limit для {event.from_user.id}: подождать {wait_sec} сек")
             return None  # блокируем
 
-        # записываем запрос и пропускаем
-        _user_requests[user_id].append(now)
         return await handler(event, data)

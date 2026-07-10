@@ -120,6 +120,48 @@ TRANSLATIONS = {
         "uz": f"\n\n{E['download']} @{{bot_username}} orqali bepul yuklab oling",
         "en": f"\n\n{E['download']} Download for free via @{{bot_username}}",
     },
+    "download.profile_photo": {
+        "ru": f"{E['camera']} Фото профиля @{{username}}",
+        "uz": f"{E['camera']} @{{username}} profil rasmi",
+        "en": f"{E['camera']} Profile photo of @{{username}}",
+    },
+
+    # === Inline-режим (кнопки над результатами — без HTML) ===
+    "inline.hint": {
+        "ru": "Вставь ссылку на пост, Reels или профиль",
+        "uz": "Post, Reels yoki profil havolasini kiriting",
+        "en": "Paste a post, Reels or profile link",
+    },
+    "inline.rate_limit": {
+        "ru": "Слишком много запросов — подожди минуту",
+        "uz": "Juda ko'p so'rovlar — bir daqiqa kuting",
+        "en": "Too many requests — wait a minute",
+    },
+    "inline.need_sub": {
+        "ru": "Сначала подпишись на каналы — открой бота",
+        "uz": "Avval kanallarga obuna bo'ling — botni oching",
+        "en": "Subscribe to channels first — open the bot",
+    },
+    "inline.error": {
+        "ru": "Не получилось — попробуй скачать в боте",
+        "uz": "Xatolik — botda yuklab olishga urinib ko'ring",
+        "en": "Failed — try downloading in the bot",
+    },
+    "inline.session_flagged": {
+        "ru": "Instagram временно ограничил доступ — попробуй через час",
+        "uz": "Instagram vaqtincha cheklandi — bir soatdan keyin urining",
+        "en": "Instagram limited access — try again in an hour",
+    },
+    "inline.title_video": {
+        "ru": "Отправить видео",
+        "uz": "Video yuborish",
+        "en": "Send video",
+    },
+    "inline.title_photo": {
+        "ru": "Отправить фото",
+        "uz": "Rasm yuborish",
+        "en": "Send photo",
+    },
 
     # === Описания команд бота (для меню Telegram) ===
     "cmd.start": {
@@ -316,6 +358,40 @@ TRANSLATIONS = {
         "ru": f"{E['clock']} <b>Слишком много запросов!</b>\n\nПодожди {{seconds}} секунд и попробуй снова.",
         "uz": f"{E['clock']} <b>Juda ko'p so'rovlar!</b>\n\n{{seconds}} soniya kuting va qayta urinib ko'ring.",
         "en": f"{E['clock']} <b>Too many requests!</b>\n\nWait {{seconds}} seconds and try again.",
+    },
+    "error.session_flagged": {
+        "ru": (
+            f"{E['clock']} <b>Instagram временно ограничил доступ</b>\n\n"
+            f"Скачивание постов, Stories и аватарок сейчас недоступно. "
+            f"Попробуй через час — мы уже чиним."
+        ),
+        "uz": (
+            f"{E['clock']} <b>Instagram vaqtincha kirishni chekladi</b>\n\n"
+            f"Post, Stories va avatarlarni yuklab olish hozircha ishlamaydi. "
+            f"Bir soatdan keyin urinib ko'ring — biz tuzatyapmiz."
+        ),
+        "en": (
+            f"{E['clock']} <b>Instagram temporarily limited access</b>\n\n"
+            f"Downloading posts, Stories and avatars is unavailable right now. "
+            f"Try again in an hour — we're already fixing it."
+        ),
+    },
+    "error.profile_failed": {
+        "ru": (
+            f"{E['cross']} <b>Не удалось скачать фото профиля @{{username}}</b>\n\n"
+            f"Возможно, аккаунт не существует или Instagram временно блокирует запросы.\n\n"
+            f"{E['bulb']} Чтобы скачать медиа — отправь ссылку на пост, Reels или историю."
+        ),
+        "uz": (
+            f"{E['cross']} <b>@{{username}} profil rasmini yuklab bo'lmadi</b>\n\n"
+            f"Ehtimol, akkaunt mavjud emas yoki Instagram so'rovlarni vaqtincha bloklamoqda.\n\n"
+            f"{E['bulb']} Media yuklab olish uchun post, Reels yoki story havolasini yuboring."
+        ),
+        "en": (
+            f"{E['cross']} <b>Couldn't download profile photo of @{{username}}</b>\n\n"
+            f"The account may not exist or Instagram is temporarily blocking requests.\n\n"
+            f"{E['bulb']} To download media — send a link to a post, Reels or Story."
+        ),
     },
 
     # === Выбор языка ===

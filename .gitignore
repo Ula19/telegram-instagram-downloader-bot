@@ -1,0 +1,37 @@
+# виртуальное окружение
+venv/
+.venv/
+
+# переменные окружения
+.env
+
+# кэш Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# временные файлы
+*.tmp
+*.log
+.DS_Store
+
+# IDE
+.idea/
+.vscode/
+
+# служебные папки агентов
+.beads/
+.claude/
+
+# локальные базы
+*.db
+
+# скачанные медиа
+downloads/
+
+# alembic
+alembic/versions/*.pyc
+
+# не отслеживаем md кроме README
+*.md
+!README.md
