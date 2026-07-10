@@ -24,6 +24,7 @@ from bot.middlewares.rate_limit import hit_rate_limit
 from bot.middlewares.subscription import is_subscribed
 from bot.services.posts import get_post_media_urls
 from bot.services.profile import get_avatar_url
+from bot.services.session_pool import SessionExpiredError
 from bot.services.stories import get_story_media_urls, is_story_url
 from bot.utils.helpers import (
     clean_instagram_url,
@@ -199,6 +200,11 @@ async def inline_download(query: InlineQuery) -> None:
         if not await _answer(query, results, cache_time=300):
             # Telegram отверг результаты — отдаём хотя бы кнопку ошибки
             await _answer(query, [], button=_button(t("inline.error", lang), "inline_help"))
+
+    except SessionExpiredError as e:
+        # все Instagram-аккаунты выгорели — отдельная подсказка
+        logger.error(f"Inline: Instagram недоступен ({clean_url}): {e}")
+        await _answer(query, [], button=_button(t("inline.session_flagged", lang), "inline_help"))
 
     except Exception as e:
         logger.error(f"Inline: не удалось обработать {clean_url}: {e}")

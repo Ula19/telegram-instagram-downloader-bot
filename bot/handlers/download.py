@@ -2,6 +2,7 @@
 import logging
 import os
 import re
+import time
 
 from aiogram import F, Router
 from aiogram.types import (
@@ -141,15 +142,10 @@ async def _process_download(
         await status_msg.delete()
 
     except SessionExpiredError as e:
-        # Сессия устарела — сообщаем юзеру и сразу уведомляем админов
-        logger.error(f"Сессия Instagram устарела: {e}")
-        await status_msg.edit_text(t("error.story_expired", lang))
-        await notify_admins(
-            message.bot,
-            f"{E['warning']} <b>INSTAGRAM_SESSION_ID устарела!</b>\n\n"
-            "Скачивание Stories не работает для всех пользователей.\n\n"
-            "Действие: обнови INSTAGRAM_SESSION_ID в .env и перезапусти бот (<code>docker compose restart bot</code>)",
-        )
+        # Все аккаунты выгорели — сообщаем юзеру и уведомляем админов
+        logger.error(f"Сессия Instagram недоступна: {e}")
+        await status_msg.edit_text(t("error.session_flagged", lang))
+        await _alert_session_dead(message.bot)
 
     except Exception as e:
         logger.error(f"Ошибка скачивания {clean_url}: {e}")
@@ -186,14 +182,9 @@ async def _process_profile(
         await _bump_download_count(message)
 
     except SessionExpiredError as e:
-        logger.error(f"Сессия Instagram устарела: {e}")
-        await status_msg.edit_text(t("error.profile_failed", lang, username=username))
-        await notify_admins(
-            message.bot,
-            f"{E['warning']} <b>INSTAGRAM_SESSION_ID устарела!</b>\n\n"
-            "Скачивание Stories и аватарок не работает для всех пользователей.\n\n"
-            "Действие: обнови INSTAGRAM_SESSION_ID в .env и перезапусти бот (<code>docker compose restart bot</code>)",
-        )
+        logger.error(f"Сессия Instagram недоступна: {e}")
+        await status_msg.edit_text(t("error.session_flagged", lang))
+        await _alert_session_dead(message.bot)
 
     except Exception as e:
         logger.error(f"Ошибка скачивания аватарки @{username}: {e}")
@@ -202,6 +193,30 @@ async def _process_profile(
     finally:
         if results:
             downloader.cleanup(results)
+
+
+# троттлинг алерта админам — чтобы при потоке запросов не спамило
+_last_session_alert = 0.0
+_SESSION_ALERT_COOLDOWN = 30 * 60  # 30 мин
+
+
+async def _alert_session_dead(bot) -> None:
+    """Уведомляет админов что все Instagram-аккаунты выгорели (не чаще раза в 30 мин)"""
+    global _last_session_alert
+    now = time.monotonic()
+    if now - _last_session_alert < _SESSION_ALERT_COOLDOWN:
+        return
+    _last_session_alert = now
+
+    await notify_admins(
+        bot,
+        f"{E['warning']} <b>Instagram-аккаунты заблокированы!</b>\n\n"
+        "Все INSTAGRAM_SESSION_ID под ограничением (challenge/feedback). "
+        "Не работают: посты (fallback), Stories, аватарки, inline-режим.\n\n"
+        "Действие: зайди в аккаунт(ы) через браузер, пройди проверку «это вы», "
+        "обнови INSTAGRAM_SESSION_ID в .env и перезапусти "
+        "(<code>docker compose restart bot</code>)",
+    )
 
 
 async def _bump_download_count(message: Message) -> None:

@@ -8,10 +8,15 @@ import uuid
 
 import aiohttp
 
-from bot.config import settings
+from bot.services.session_pool import (
+    SessionExpiredError,
+    check_flagged,
+    get_sessionid,
+    has_any_session,
+    with_rotation,
+)
 from bot.services.stories import (
     INSTAGRAM_HEADERS,
-    SessionExpiredError,
     create_session,
     fetch_profile_info,
 )
@@ -22,17 +27,15 @@ logger = logging.getLogger(__name__)
 async def _fetch_user_pk(session: aiohttp.ClientSession, username: str) -> str:
     """Ищет юзера по username через private API search, возвращает pk"""
     url = f"https://i.instagram.com/api/v1/users/search?q={username}"
-    cookies = {"sessionid": settings.instagram_session_id}
+    sid = get_sessionid()
+    cookies = {"sessionid": sid}
 
     async with session.get(
         url, headers=INSTAGRAM_HEADERS, cookies=cookies,
         timeout=aiohttp.ClientTimeout(total=10),
     ) as resp:
-        if resp.status in (401, 403):
-            raise SessionExpiredError(
-                f"INSTAGRAM_SESSION_ID устарела или заблокирована (HTTP {resp.status})"
-            )
         if resp.status != 200:
+            check_flagged(sid, resp.status, await resp.text())
             raise RuntimeError(f"Поиск юзера не сработал: HTTP {resp.status}")
         data = await resp.json()
 
@@ -47,18 +50,16 @@ async def _fetch_user_pk(session: aiohttp.ClientSession, username: str) -> str:
 async def _fetch_hd_avatar_url(session: aiohttp.ClientSession, pk: str) -> str:
     """Получает URL HD-аватарки через users/{pk}/info"""
     url = f"https://i.instagram.com/api/v1/users/{pk}/info/"
-    cookies = {"sessionid": settings.instagram_session_id}
+    sid = get_sessionid()
+    cookies = {"sessionid": sid}
 
     async with session.get(
         url, headers=INSTAGRAM_HEADERS, cookies=cookies,
         # этот endpoint бывает медленным — таймаут больше
         timeout=aiohttp.ClientTimeout(total=25),
     ) as resp:
-        if resp.status in (401, 403):
-            raise SessionExpiredError(
-                f"INSTAGRAM_SESSION_ID устарела или заблокирована (HTTP {resp.status})"
-            )
         if resp.status != 200:
+            check_flagged(sid, resp.status, await resp.text())
             raise RuntimeError(f"Не удалось получить инфо юзера: HTTP {resp.status}")
         data = await resp.json()
 
@@ -92,26 +93,32 @@ async def _get_avatar_url(session: aiohttp.ClientSession, username: str) -> str:
 
 async def get_avatar_url(username: str) -> str:
     """Возвращает прямую ссылку на HD-аватарку БЕЗ скачивания (для inline-режима)"""
-    if not settings.instagram_session_id:
+    if not has_any_session():
         raise RuntimeError(
             "Для скачивания фото профиля нужна авторизация.\n"
             "Добавь INSTAGRAM_SESSION_ID в .env"
         )
 
-    async with create_session() as session:
-        return await _get_avatar_url(session, username)
+    async def _impl():
+        async with create_session() as session:
+            return await _get_avatar_url(session, username)
+
+    return await with_rotation(_impl)
 
 
 async def download_profile_photo(username: str, download_dir: str) -> dict:
     """Скачивает HD-аватарку профиля.
     Возвращает {file_path, media_type, title} — как download_story.
     """
-    if not settings.instagram_session_id:
+    if not has_any_session():
         raise RuntimeError(
             "Для скачивания фото профиля нужна авторизация.\n"
             "Добавь INSTAGRAM_SESSION_ID в .env"
         )
+    return await with_rotation(lambda: _download_profile_photo_impl(username, download_dir))
 
+
+async def _download_profile_photo_impl(username: str, download_dir: str) -> dict:
     async with create_session() as session:
         pic_url = await _get_avatar_url(session, username)
 

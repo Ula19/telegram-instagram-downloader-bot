@@ -10,10 +10,14 @@ import uuid
 
 import aiohttp
 
-from bot.config import settings
+from bot.services.session_pool import (
+    check_flagged,
+    get_sessionid,
+    has_any_session,
+    with_rotation,
+)
 from bot.services.stories import (
     INSTAGRAM_HEADERS,
-    SessionExpiredError,
     create_session,
     pick_inline_video_url,
 )
@@ -52,7 +56,8 @@ def shortcode_to_media_pk(shortcode: str) -> int:
 async def get_media_info(session: aiohttp.ClientSession, media_pk: int) -> dict:
     """Получает инфо о посте через private API (с ретраем при 429)"""
     url = f"https://i.instagram.com/api/v1/media/{media_pk}/info/"
-    cookies = {"sessionid": settings.instagram_session_id}
+    sid = get_sessionid()
+    cookies = {"sessionid": sid}
 
     # ретрай при 429
     for attempt in range(3):
@@ -65,13 +70,11 @@ async def get_media_info(session: aiohttp.ClientSession, media_pk: int) -> dict:
                 logger.warning(f"429 от Instagram, ждём {delay}с (попытка {attempt + 1}/3)")
                 await asyncio.sleep(delay)
                 continue
-            if resp.status in (401, 403):
-                raise SessionExpiredError(
-                    f"INSTAGRAM_SESSION_ID устарела или заблокирована (HTTP {resp.status})"
-                )
             if resp.status == 404:
                 raise RuntimeError("Пост не найден (404) — удалён или ссылка неправильная")
             if resp.status != 200:
+                # аккаунт под ограничением (challenge/feedback/401/403)? уводим в кулдаун
+                check_flagged(sid, resp.status, await resp.text())
                 raise RuntimeError(f"Не удалось получить пост: HTTP {resp.status}")
             data = await resp.json()
             break
@@ -121,12 +124,15 @@ async def get_post_media_urls(url: str) -> list[dict]:
     """Возвращает прямые CDN-ссылки медиа поста БЕЗ скачивания (для inline-режима).
     Каждый элемент: {url, media_type, thumb}
     """
-    if not settings.instagram_session_id:
+    if not has_any_session():
         raise RuntimeError(
             "Для inline-режима нужна авторизация.\n"
             "Добавь INSTAGRAM_SESSION_ID в .env"
         )
+    return await with_rotation(lambda: _get_post_media_urls_impl(url))
 
+
+async def _get_post_media_urls_impl(url: str) -> list[dict]:
     shortcode = parse_post_shortcode(url)
     media_pk = shortcode_to_media_pk(shortcode)
 
@@ -165,12 +171,15 @@ async def download_post(url: str, download_dir: str) -> list[dict]:
     """Скачивает пост (фото/видео/карусель) через private API.
     Возвращает список {file_path, media_type, title} — как download_story.
     """
-    if not settings.instagram_session_id:
+    if not has_any_session():
         raise RuntimeError(
             "Для скачивания через private API нужна авторизация.\n"
             "Добавь INSTAGRAM_SESSION_ID в .env"
         )
+    return await with_rotation(lambda: _download_post_impl(url, download_dir))
 
+
+async def _download_post_impl(url: str, download_dir: str) -> list[dict]:
     shortcode = parse_post_shortcode(url)
     media_pk = shortcode_to_media_pk(shortcode)
     logger.info(f"Post fallback: shortcode={shortcode}, pk={media_pk}")

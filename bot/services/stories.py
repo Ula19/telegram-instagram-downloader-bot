@@ -8,12 +8,20 @@ import aiohttp
 from aiohttp_socks import ProxyConnector
 
 from bot.config import settings
+from bot.services.session_pool import (
+    AllSessionsExpiredError,
+    SessionExpiredError,
+    check_flagged,
+    get_sessionid,
+    has_any_session,
+    with_rotation,
+)
 
 logger = logging.getLogger(__name__)
 
-
-class SessionExpiredError(RuntimeError):
-    """INSTAGRAM_SESSION_ID устарела или невалидна — нужно обновить"""
+# SessionExpiredError реэкспортируется из session_pool — старые импорты
+# `from bot.services.stories import SessionExpiredError` продолжают работать
+__all__ = ["SessionExpiredError", "AllSessionsExpiredError"]
 
 # Instagram private API — мобильные заголовки
 INSTAGRAM_HEADERS = {
@@ -67,32 +75,33 @@ def _proxy_kind() -> str:
 
 async def _fetch_profile_once(
     session: aiohttp.ClientSession, username: str, cookies: dict
-) -> tuple[int, dict | None]:
-    """Один запрос профиля. Возвращает (http_status, json или None)"""
+) -> tuple[int, dict | None, str]:
+    """Один запрос профиля. Возвращает (http_status, json или None, тело текстом)"""
     url = f"https://i.instagram.com/api/v1/users/web_profile_info/?username={username}"
     async with session.get(
         url, headers=INSTAGRAM_HEADERS, cookies=cookies,
         timeout=aiohttp.ClientTimeout(total=10),
     ) as resp:
         if resp.status != 200:
-            return resp.status, None
-        return 200, await resp.json()
+            return resp.status, None, await resp.text()
+        return 200, await resp.json(), ""
 
 
 async def fetch_profile_info(session: aiohttp.ClientSession, username: str) -> dict:
     """Получает данные профиля через private API (с ретраем при 429).
     Возвращает dict юзера: id, profile_pic_url_hd, is_private и т.д.
     """
-    cookies = {"sessionid": settings.instagram_session_id}
+    sid = get_sessionid()
+    cookies = {"sessionid": sid}
 
     # ретрай при 429
     for attempt in range(3):
-        status, data = await _fetch_profile_once(session, username, cookies)
+        status, data, body = await _fetch_profile_once(session, username, cookies)
 
         # 429 с sessionid — лимит висит на аккаунте, пробуем анонимно.
         # Анонимный ответ берём только если 200, иначе ошибки не искажаем
         if status == 429:
-            anon_status, anon_data = await _fetch_profile_once(session, username, {})
+            anon_status, anon_data, _ = await _fetch_profile_once(session, username, {})
             if anon_status == 200:
                 logger.info(f"429 с sessionid, анонимный запрос прошёл (@{username})")
                 status, data = 200, anon_data
@@ -102,11 +111,10 @@ async def fetch_profile_info(session: aiohttp.ClientSession, username: str) -> d
             logger.warning(f"429 от Instagram, ждём {delay}с (попытка {attempt + 1}/3)")
             await asyncio.sleep(delay)
             continue
-        if status in (401, 403):
-            raise SessionExpiredError(
-                f"INSTAGRAM_SESSION_ID устарела или заблокирована (HTTP {status})"
-            )
+
         if status != 200:
+            # аккаунт под ограничением (challenge/feedback/401/403)? уводим в кулдаун
+            check_flagged(sid, status, body)
             raise RuntimeError(f"Не удалось получить профиль @{username}: HTTP {status}")
         break
     else:
@@ -138,13 +146,15 @@ async def get_story_media(
 ) -> dict:
     """Получает медиа конкретной истории"""
     url = f"https://i.instagram.com/api/v1/feed/reels_media/?reel_ids={user_id}"
-    cookies = {"sessionid": settings.instagram_session_id}
+    sid = get_sessionid()
+    cookies = {"sessionid": sid}
 
     async with session.get(
         url, headers=INSTAGRAM_HEADERS, cookies=cookies,
         timeout=aiohttp.ClientTimeout(total=10),
     ) as resp:
         if resp.status != 200:
+            check_flagged(sid, resp.status, await resp.text())
             raise RuntimeError(f"Не удалось получить истории: HTTP {resp.status}")
         data = await resp.json()
 
@@ -190,16 +200,7 @@ async def pick_inline_video_url(
     return versions[-1]["url"]
 
 
-async def get_story_media_urls(url: str) -> dict:
-    """Возвращает прямую CDN-ссылку истории БЕЗ скачивания (для inline-режима).
-    Формат: {url, media_type, thumb, username}
-    """
-    if not settings.instagram_session_id:
-        raise RuntimeError(
-            "Для скачивания Stories нужна авторизация.\n"
-            "Добавь INSTAGRAM_SESSION_ID в .env"
-        )
-
+async def _get_story_media_urls_impl(url: str) -> dict:
     username, story_id = parse_story_url(url)
 
     async with create_session() as session:
@@ -226,14 +227,19 @@ async def get_story_media_urls(url: str) -> dict:
     }
 
 
-async def download_story(url: str, download_dir: str) -> dict:
-    """Скачивает историю и возвращает {file_path, media_type, title}"""
-    if not settings.instagram_session_id:
+async def get_story_media_urls(url: str) -> dict:
+    """Возвращает прямую CDN-ссылку истории БЕЗ скачивания (для inline-режима).
+    Формат: {url, media_type, thumb, username}
+    """
+    if not has_any_session():
         raise RuntimeError(
             "Для скачивания Stories нужна авторизация.\n"
             "Добавь INSTAGRAM_SESSION_ID в .env"
         )
+    return await with_rotation(lambda: _get_story_media_urls_impl(url))
 
+
+async def _download_story_impl(url: str, download_dir: str) -> dict:
     username, story_id = parse_story_url(url)
     logger.info(f"Stories: user=@{username}, proxy={_proxy_kind()}")
 
@@ -282,3 +288,13 @@ async def download_story(url: str, download_dir: str) -> dict:
             "media_type": media_type,
             "title": f"Story @{username}",
         }
+
+
+async def download_story(url: str, download_dir: str) -> dict:
+    """Скачивает историю и возвращает {file_path, media_type, title}"""
+    if not has_any_session():
+        raise RuntimeError(
+            "Для скачивания Stories нужна авторизация.\n"
+            "Добавь INSTAGRAM_SESSION_ID в .env"
+        )
+    return await with_rotation(lambda: _download_story_impl(url, download_dir))

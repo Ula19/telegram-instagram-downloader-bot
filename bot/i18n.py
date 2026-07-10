@@ -147,6 +147,11 @@ TRANSLATIONS = {
         "uz": "Xatolik — botda yuklab olishga urinib ko'ring",
         "en": "Failed — try downloading in the bot",
     },
+    "inline.session_flagged": {
+        "ru": "Instagram временно ограничил доступ — попробуй через час",
+        "uz": "Instagram vaqtincha cheklandi — bir soatdan keyin urining",
+        "en": "Instagram limited access — try again in an hour",
+    },
     "inline.title_video": {
         "ru": "Отправить видео",
         "uz": "Video yuborish",
@@ -353,6 +358,23 @@ TRANSLATIONS = {
         "ru": f"{E['clock']} <b>Слишком много запросов!</b>\n\nПодожди {{seconds}} секунд и попробуй снова.",
         "uz": f"{E['clock']} <b>Juda ko'p so'rovlar!</b>\n\n{{seconds}} soniya kuting va qayta urinib ko'ring.",
         "en": f"{E['clock']} <b>Too many requests!</b>\n\nWait {{seconds}} seconds and try again.",
+    },
+    "error.session_flagged": {
+        "ru": (
+            f"{E['clock']} <b>Instagram временно ограничил доступ</b>\n\n"
+            f"Скачивание постов, Stories и аватарок сейчас недоступно. "
+            f"Попробуй через час — мы уже чиним."
+        ),
+        "uz": (
+            f"{E['clock']} <b>Instagram vaqtincha kirishni chekladi</b>\n\n"
+            f"Post, Stories va avatarlarni yuklab olish hozircha ishlamaydi. "
+            f"Bir soatdan keyin urinib ko'ring — biz tuzatyapmiz."
+        ),
+        "en": (
+            f"{E['clock']} <b>Instagram temporarily limited access</b>\n\n"
+            f"Downloading posts, Stories and avatars is unavailable right now. "
+            f"Try again in an hour — we're already fixing it."
+        ),
     },
     "error.profile_failed": {
         "ru": (
