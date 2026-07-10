@@ -1,0 +1,12 @@
+venv/
+.git/
+.env
+__pycache__/
+*.pyc
+*.session
+.crash_flag
+PROJECT_LOG.md
+AGENTS.md
+.beads/
+*.md
+!README.md
